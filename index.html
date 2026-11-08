@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#17151e">
+    <title>Fabiola.AI — Chat</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="app">
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-icon" aria-hidden="true">F</div>
+                <span>Fabiola<span class="brand-dot">.AI</span></span>
+            </div>
+
+            <button class="new-chat" id="new-chat" type="button">
+                <span aria-hidden="true">+</span> Nueva conversación
+            </button>
+
+            <div class="sidebar-section">
+                <p class="section-label">MENÚ</p>
+                <a class="nav-item active" href="/" aria-current="page">
+                    <span aria-hidden="true">◉</span> Conversación
+                </a>
+            </div>
+
+            <div class="sidebar-bottom">
+                <div class="profile">
+                    <div class="avatar user-avatar" aria-hidden="true">M</div>
+                    <div>
+                        <strong>Mateo</strong>
+                        <small>En línea</small>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="chat">
+            <header class="chat-header">
+                <div class="header-info">
+                    <div class="avatar bot-avatar" aria-hidden="true">F</div>
+                    <div>
+                        <h2>Fabiola.AI</h2>
+                        <p><span class="status-dot"></span>Asistente personal</p>
+                    </div>
+                </div>
+                <button class="more-button" type="button" aria-label="Más opciones" title="Más opciones">···</button>
+            </header>
+
+            <section class="messages" id="messages" aria-label="Conversación" aria-live="polite">
+                <div class="date-divider"><span>CONVERSACIÓN</span></div>
+                <div class="welcome">
+                    <div class="welcome-icon" aria-hidden="true">F</div>
+                    <h1>Un espacio para conversar</h1>
+                    <p>Cuéntame lo que tienes en mente. Estoy aquí para escucharte.</p>
+                </div>
+                <article class="message bot-message">
+                    <div class="message-avatar" aria-hidden="true">F</div>
+                    <div class="message-content">
+                        <span class="sender">Fabiola.AI</span>
+                        <div class="bubble">Hola :) Dime tu nombre para comenzar.</div>
+                    </div>
+                </article>
+            </section>
+
+            <footer class="chat-footer">
+                <form class="input-container" id="chat-form">
+                    <input
+                        id="message-input"
+                        type="text"
+                        placeholder="Escribe un mensaje..."
+                        aria-label="Escribe un mensaje"
+                        maxlength="2000"
+                        autocomplete="off"
+                        required
+                    >
+                    <button class="send-button" id="send-button" type="submit" aria-label="Enviar mensaje">↑</button>
+                </form>
+                <p class="disclaimer">Fabiola.AI es una inteligencia artificial; no reemplaza a una persona.</p>
+            </footer>
+        </main>
+    </div>
+
+    <script>
+        const messages = document.querySelector("#messages");
+        const form = document.querySelector("#chat-form");
+        const input = document.querySelector("#message-input");
+        const sendButton = document.querySelector("#send-button");
+        const newChatButton = document.querySelector("#new-chat");
+
+        function addMessage(text, sender, pending = false) {
+            const article = document.createElement("article");
+            article.className = `message ${sender === "user" ? "user-message" : "bot-message"}`;
+            if (pending) article.dataset.pending = "true";
+
+            if (sender !== "user") {
+                const avatar = document.createElement("div");
+                avatar.className = "message-avatar";
+                avatar.setAttribute("aria-hidden", "true");
+                avatar.textContent = "F";
+                article.append(avatar);
+            }
+
+            const content = document.createElement("div");
+            content.className = "message-content";
+            const label = document.createElement("span");
+            label.className = "sender";
+            label.textContent = sender === "user" ? "Mateo" : "Fabiola.AI";
+            const bubble = document.createElement("div");
+            bubble.className = "bubble";
+            bubble.textContent = text;
+            content.append(label, bubble);
+            article.append(content);
+            messages.append(article);
+            messages.scrollTop = messages.scrollHeight;
+            return bubble;
+        }
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const message = input.value.trim();
+            if (!message || sendButton.disabled) return;
+
+            addMessage(message, "user");
+            input.value = "";
+            input.focus();
+            sendButton.disabled = true;
+            newChatButton.disabled = true;
+            const replyBubble = addMessage("Escribiendo...", "bot", true);
+
+            try {
+                const response = await fetch("/api/chat", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || "No se pudo enviar el mensaje.");
+                replyBubble.textContent = data.reply;
+            } catch (error) {
+                replyBubble.textContent = error.message || "No se pudo conectar con el servidor. Inténtalo de nuevo.";
+            } finally {
+                sendButton.disabled = false;
+                newChatButton.disabled = false;
+                messages.scrollTop = messages.scrollHeight;
+            }
+        });
+
+        newChatButton.addEventListener("click", async () => {
+            newChatButton.disabled = true;
+            sendButton.disabled = true;
+            try {
+                const response = await fetch("/api/reset", { method: "POST" });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || "No se pudo iniciar una conversación nueva.");
+                messages.querySelectorAll(".message").forEach((message) => message.remove());
+                addMessage(data.reply, "bot");
+                input.value = "";
+                input.focus();
+            } catch (error) {
+                addMessage(error.message || "No se pudo iniciar una conversación nueva.", "bot");
+            } finally {
+                newChatButton.disabled = false;
+                sendButton.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
